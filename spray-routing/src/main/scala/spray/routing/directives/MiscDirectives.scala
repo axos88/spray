@@ -32,7 +32,7 @@ trait MiscDirectives {
    * Returns a Directive which checks the given condition before passing on the [[spray.routing.RequestContext]] to
    * its inner Route. If the condition fails the route is rejected with a [[spray.routing.ValidationRejection]].
    */
-  def validate(check: ⇒ Boolean, errorMsg: String): Directive0 =
+  def validate(check: ⇒ Boolean, errorMsg: => String): Directive0 =
     new Directive0 {
       def happly(f: HNil ⇒ Route) = if (check) f(HNil) else reject(ValidationRejection(errorMsg))
     }
