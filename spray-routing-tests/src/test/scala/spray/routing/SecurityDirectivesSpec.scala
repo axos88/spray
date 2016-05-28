@@ -158,4 +158,71 @@ class SecurityDirectivesSpec extends RoutingSpec {
         check { responseAs[String] === "Some(2)" }
     }
   }
+
+  "the 'authorize(check)' directive" should {
+
+    val respond = complete(StatusCodes.OK)
+    val failedRejection = ValidationRejection("Other Rejection")
+    val fail = reject(failedRejection)
+
+    val authorizedRoute = authorize(true) { respond }
+    val authorizedRouteButFailing = authorize(true) { fail }
+
+    val unAuthorizedRoute = authorize(false) { respond }
+
+    val unAuthorizedWithSiblingAuthorizedRoute =
+      authorize(false) { respond } ~
+        authorize(true) { respond }
+
+    val authorizedWithInnerUnauthorizedRoute =
+      authorize(true) {
+        authorize(false) {
+          respond
+        }
+      }
+
+    val unAuthorizedWithSiblingAuthorizedButRejecting =
+      authorize(false) { respond } ~
+        authorize(true) { fail }
+
+    val authorizedFailingWithSucceedingSibling =
+      authorize(true) { fail } ~
+        authorize(true) { respond }
+
+    "accept request when the check succeeds" in {
+      Get() ~> Host("spray.io") ~> authorizedRoute ~>
+        check { status == StatusCodes.OK }
+    }
+
+    "reject request when the check succeeds but the inner route fails" in {
+      Get() ~> Host("spray.io") ~> authorizedRouteButFailing ~>
+        check { rejection == failedRejection }
+    }
+
+    "reject request when the check fails" in {
+      Get() ~> Host("spray.io") ~> unAuthorizedRoute ~>
+        check { rejection == AuthorizationFailedRejection }
+    }
+
+    "accept request when the check fails, but a sibling succeeds" in {
+      Get() ~> Host("spray.io") ~> unAuthorizedWithSiblingAuthorizedRoute ~>
+        check { status == StatusCodes.OK }
+    }
+
+    "reject request when the check succeeds but an inner check fails" in {
+      Get() ~> Host("spray.io") ~> authorizedWithInnerUnauthorizedRoute ~>
+        check { rejection == AuthorizationFailedRejection }
+    }
+
+    "reject with the correct Rejection when the check fails, but a sibling check succeeds, but fails with another rejection" in {
+      Get() ~> Host("spray.io") ~> unAuthorizedWithSiblingAuthorizedButRejecting ~>
+        check { rejection == failedRejection }
+    }
+
+    "accept when the check fails, but the inner route fails with a sibling that succeeds with the inner route succeeding" in {
+      Get() ~> Host("spray.io") ~> authorizedFailingWithSucceedingSibling ~>
+        check { status == StatusCodes.OK }
+
+    }
+  }
 }
